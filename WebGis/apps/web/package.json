@@ -2,7 +2,22 @@
   "name": "@bh/web",
   "version": "0.1.0",
   "type": "module",
-  "scripts": { "dev": "vite", "build": "tsc -b && vite build" },
-  "dependencies": { "@vitejs/plugin-react": "latest", "leaflet": "^1.9.4", "react": "^19.2.0", "react-dom": "^19.2.0", "react-leaflet": "latest", "vite": "latest" },
-  "devDependencies": { "@types/leaflet": "latest", "@types/react": "latest", "@types/react-dom": "latest" }
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "leaflet": "^1.9.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-leaflet": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@types/leaflet": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "typescript": "^6.0.3"
+  }
 }

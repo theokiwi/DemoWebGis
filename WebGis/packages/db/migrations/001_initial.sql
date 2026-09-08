@@ -1,0 +1,7 @@
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE TYPE publication_status AS ENUM ('staging','ready','active','failed','retired');
+CREATE TYPE offer_view AS ENUM ('sus','total');
+CREATE TABLE data_editions (id uuid PRIMARY KEY, label text NOT NULL, status publication_status NOT NULL DEFAULT 'staging', published_at timestamptz, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE census_sectors (edition_id uuid REFERENCES data_editions(id), geocode varchar(15) NOT NULL, geometry geometry(MultiPolygon,4674) NOT NULL, representative_point geometry(Point,4674) NOT NULL, population integer CHECK(population>=0), income_v06006 numeric CHECK(income_v06006>=0), children_share numeric CHECK(children_share BETWEEN 0 AND 1), older_share numeric CHECK(older_share BETWEEN 0 AND 1), PRIMARY KEY(edition_id,geocode));
+CREATE TABLE facilities (edition_id uuid REFERENCES data_editions(id), cnes_id text NOT NULL, name text NOT NULL, categories text[] NOT NULL, serves_sus boolean NOT NULL, active boolean NOT NULL, location geometry(Point,4674) NOT NULL, address text, PRIMARY KEY(edition_id,cnes_id));
+CREATE TABLE risk_results (edition_id uuid REFERENCES data_editions(id), geocode varchar(15) NOT NULL, view offer_view NOT NULL, category_key text NOT NULL DEFAULT '', risk_score numeric CHECK(risk_score BETWEEN 0 AND 1), risk_band smallint CHECK(risk_band BETWEEN 1 AND 5), components jsonb NOT NULL, PRIMARY KEY(edition_id,geocode,view,category_key));

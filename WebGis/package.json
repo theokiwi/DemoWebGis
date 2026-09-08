@@ -1,0 +1,31 @@
+{
+  "name": "bh-saude-acessivel",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @bh/api\" \"npm run dev -w @bh/web\"",
+    "build": "npm run build -w @bh/domain && npm run build -w @bh/api && npm run build -w @bh/web",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:unit": "vitest run packages/domain",
+    "test:integration": "vitest run apps/api",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "db:migrate": "echo 'Execute as migrations SQL in packages/db/migrations'",
+    "data:load-fixtures": "echo 'The API starts with the versioned synthetic fixture'"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@playwright/test": "latest",
+    "@types/node": "latest",
+    "concurrently": "latest",
+    "eslint": "latest",
+    "eslint-plugin-react-hooks": "latest",
+    "globals": "latest",
+    "typescript": "latest",
+    "typescript-eslint": "latest",
+    "vitest": "latest"
+  }
+}

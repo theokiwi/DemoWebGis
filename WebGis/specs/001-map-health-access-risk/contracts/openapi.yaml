@@ -1,0 +1,453 @@
+openapi: 3.1.0
+info:
+  title: API do Mapa de Risco de Acesso à Saúde
+  version: 1.0.0
+  description: API pública e somente leitura para a edição ativa de Belo Horizonte.
+  license:
+    name: Licenças documentadas por fonte
+    identifier: LicenseRef-Source-Specific
+servers:
+  - url: /api/v1
+security: []
+tags:
+  - name: Metadata
+    description: Edição ativa, metodologia, fontes, categorias e saúde do serviço
+  - name: Sectors
+    description: Camada territorial de risco e detalhes dos setores censitários
+  - name: Facilities
+    description: Pontos e detalhes públicos dos estabelecimentos de saúde
+paths:
+  /metadata:
+    get:
+      tags: [Metadata]
+      operationId: getMetadata
+      summary: Retorna edição, metodologia, fontes, visões e categorias disponíveis
+      responses:
+        '200':
+          description: Metadados da edição publicada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metadata'
+        '503':
+          $ref: '#/components/responses/NoPublishedEdition'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /sectors:
+    get:
+      tags: [Sectors]
+      operationId: listSectors
+      summary: Retorna setores e risco como FeatureCollection
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/OfferView'
+        - $ref: '#/components/parameters/Categories'
+        - name: geometryDetail
+          in: query
+          schema:
+            type: string
+            enum: [overview, detail]
+            default: overview
+      responses:
+        '200':
+          description: Setores da edição e do recorte solicitados
+          headers:
+            ETag:
+              schema: { type: string }
+            X-Data-Edition:
+              schema: { type: string }
+          content:
+            application/geo+json:
+              schema:
+                $ref: '#/components/schemas/SectorFeatureCollection'
+        '400':
+          $ref: '#/components/responses/InvalidQuery'
+        '422':
+          $ref: '#/components/responses/UnsupportedFilter'
+        '503':
+          $ref: '#/components/responses/NoPublishedEdition'
+  /sectors/{geocode}:
+    get:
+      tags: [Sectors]
+      operationId: getSector
+      summary: Retorna detalhes e decomposição do risco de um setor
+      parameters:
+        - $ref: '#/components/parameters/SectorGeocode'
+        - $ref: '#/components/parameters/OfferView'
+        - $ref: '#/components/parameters/Categories'
+      responses:
+        '200':
+          description: Detalhes do setor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectorDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnsupportedFilter'
+  /facilities:
+    get:
+      tags: [Facilities]
+      operationId: listFacilities
+      summary: Retorna estabelecimentos elegíveis como FeatureCollection
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/OfferView'
+        - $ref: '#/components/parameters/Categories'
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 2000, default: 1000 }
+        - name: cursor
+          in: query
+          schema: { type: string, maxLength: 256 }
+      responses:
+        '200':
+          description: Pontos da página solicitada
+          content:
+            application/geo+json:
+              schema:
+                $ref: '#/components/schemas/FacilityFeatureCollection'
+        '400':
+          $ref: '#/components/responses/InvalidQuery'
+        '422':
+          $ref: '#/components/responses/UnsupportedFilter'
+  /facilities/{cnesId}:
+    get:
+      tags: [Facilities]
+      operationId: getFacility
+      summary: Retorna detalhes públicos de um estabelecimento
+      parameters:
+        - name: cnesId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[0-9]{7}$' }
+      responses:
+        '200':
+          description: Detalhes do estabelecimento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacilityDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /health/live:
+    get:
+      tags: [Metadata]
+      operationId: getLiveness
+      summary: Informa se o processo da API está em execução
+      responses:
+        '200':
+          description: Processo em execução
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /health/ready:
+    get:
+      tags: [Metadata]
+      operationId: getReadiness
+      summary: Informa se banco e edição publicada estão prontos para consulta
+      responses:
+        '200':
+          description: Banco acessível e edição publicada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          $ref: '#/components/responses/NoPublishedEdition'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+components:
+  parameters:
+    Bbox:
+      name: bbox
+      in: query
+      required: true
+      description: oeste,sul,leste,norte em WGS 84; limitada à área de influência aceita
+      schema:
+        type: string
+        pattern: '^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$'
+        example: '-44.10,-20.06,-43.85,-19.77'
+    OfferView:
+      name: offerView
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [sus, total]
+    Categories:
+      name: category
+      in: query
+      description: IDs únicos; repetição do parâmetro representa união e o servidor canoniza a ordem
+      schema:
+        type: array
+        maxItems: 20
+        uniqueItems: true
+        items: { type: string, minLength: 1, maxLength: 64 }
+      style: form
+      explode: true
+    SectorGeocode:
+      name: geocode
+      in: path
+      required: true
+      schema: { type: string, pattern: '^3106200[0-9]{8}$' }
+  responses:
+    InvalidQuery:
+      description: Consulta sintaticamente inválida ou acima dos limites
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    UnsupportedFilter:
+      description: Visão ou categoria inexistente na edição ativa
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Recurso não encontrado na edição ativa
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NoPublishedEdition:
+      description: Nenhuma edição válida está pronta para consulta
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    RateLimited:
+      description: Limite temporário de requisições excedido
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [ok] }
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, requestId]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        requestId: { type: string }
+        invalidParams:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, reason]
+            properties:
+              name: { type: string }
+              reason: { type: string }
+    Metadata:
+      type: object
+      additionalProperties: false
+      required: [edition, methodology, offerViews, categories, sources]
+      properties:
+        edition: { $ref: '#/components/schemas/EditionSummary' }
+        methodology: { $ref: '#/components/schemas/MethodologySummary' }
+        offerViews:
+          type: array
+          items: { type: string, enum: [sus, total] }
+        categories:
+          type: array
+          items: { $ref: '#/components/schemas/Category' }
+        sources:
+          type: array
+          items: { $ref: '#/components/schemas/Source' }
+    EditionSummary:
+      type: object
+      additionalProperties: false
+      required: [id, label, extractedAt, publishedAt]
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string }
+        extractedAt: { type: string, format: date-time }
+        publishedAt: { type: string, format: date-time }
+    MethodologySummary:
+      type: object
+      additionalProperties: false
+      required: [version, incomeProxyVariable, normalizationMethod, bands, weights]
+      properties:
+        version: { type: string }
+        incomeProxyVariable: { type: string, const: V06006 }
+        normalizationMethod: { type: string, const: empirical_percentile_average_rank }
+        bands: { type: integer, const: 5 }
+        weights: { type: object }
+    Category:
+      type: object
+      additionalProperties: false
+      required: [id, label, description]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        description: { type: string }
+    Source:
+      type: object
+      additionalProperties: false
+      required: [name, referenceDate, uri, license]
+      properties:
+        name: { type: string }
+        referenceDate: { type: string, format: date }
+        uri: { type: string, format: uri }
+        license: { type: string }
+    Geometry:
+      oneOf:
+        - $ref: '#/components/schemas/Point'
+        - $ref: '#/components/schemas/MultiPolygon'
+    Point:
+      type: object
+      additionalProperties: false
+      required: [type, coordinates]
+      properties:
+        type: { type: string, const: Point }
+        coordinates:
+          type: array
+          prefixItems: [{ type: number }, { type: number }]
+          minItems: 2
+          maxItems: 2
+    MultiPolygon:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type: { type: string, const: MultiPolygon }
+        coordinates: { type: array }
+    GeoJsonFeature:
+      type: object
+      additionalProperties: false
+      required: [type, id, geometry, properties]
+      properties:
+        type: { type: string, const: Feature }
+        id: { type: string }
+        geometry: { $ref: '#/components/schemas/Geometry' }
+        properties: { type: object }
+    SectorFeatureCollection:
+      type: object
+      additionalProperties: false
+      required: [type, features, context]
+      properties:
+        type: { type: string, const: FeatureCollection }
+        features:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/GeoJsonFeature'
+              - type: object
+                properties:
+                  geometry: { $ref: '#/components/schemas/MultiPolygon' }
+                  properties: { $ref: '#/components/schemas/SectorSummary' }
+        context: { $ref: '#/components/schemas/ResultContext' }
+    FacilityFeatureCollection:
+      type: object
+      additionalProperties: false
+      required: [type, features, context]
+      properties:
+        type: { type: string, const: FeatureCollection }
+        features:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/GeoJsonFeature'
+              - type: object
+                properties:
+                  geometry: { $ref: '#/components/schemas/Point' }
+                  properties: { $ref: '#/components/schemas/FacilitySummary' }
+        context: { $ref: '#/components/schemas/ResultContext' }
+        nextCursor: { type: [string, 'null'] }
+    ResultContext:
+      type: object
+      additionalProperties: false
+      required: [editionId, methodologyVersion, offerView, categories, filtered]
+      properties:
+        editionId: { type: string, format: uuid }
+        methodologyVersion: { type: string }
+        offerView: { type: string, enum: [sus, total] }
+        categories: { type: array, items: { type: string } }
+        filtered: { type: boolean }
+    SectorSummary:
+      type: object
+      additionalProperties: false
+      required: [geocode, riskScore, riskBand, confidence]
+      properties:
+        geocode: { type: string }
+        riskScore: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        riskBand: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        confidence: { type: string, enum: [complete, partial, unclassified] }
+    FacilitySummary:
+      type: object
+      additionalProperties: false
+      required: [cnesId, name, categories, servesSus, external]
+      properties:
+        cnesId: { type: string }
+        name: { type: string }
+        categories: { type: array, items: { type: string } }
+        servesSus: { type: boolean }
+        external: { type: boolean }
+    SectorDetail:
+      type: object
+      additionalProperties: false
+      required: [geocode, riskScore, riskBand, confidence, context, population, distance, offer, vulnerability, missingReasons]
+      properties:
+        geocode: { type: string }
+        riskScore: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        riskBand: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        confidence: { type: string, enum: [complete, partial, unclassified] }
+        context: { $ref: '#/components/schemas/ResultContext' }
+        population: { type: [integer, 'null'] }
+        distance:
+          type: object
+          additionalProperties: false
+          required: [straightLineM, walkingM, transitMinutes, straightLineDestinationCnesId, walkingDestinationCnesId, transitDestinationCnesId, score]
+          properties:
+            straightLineM: { type: [number, 'null'] }
+            walkingM: { type: [number, 'null'] }
+            transitMinutes: { type: [number, 'null'] }
+            straightLineDestinationCnesId: { type: [string, 'null'] }
+            walkingDestinationCnesId: { type: [string, 'null'] }
+            transitDestinationCnesId: { type: [string, 'null'] }
+            score: { type: [number, 'null'] }
+        offer:
+          type: object
+          additionalProperties: false
+          required: [reachable15m, reachable30m, reachable45m, densityPer10000, riskScore]
+          properties:
+            reachable15m: { type: [integer, 'null'], minimum: 0 }
+            reachable30m: { type: [integer, 'null'], minimum: 0 }
+            reachable45m: { type: [integer, 'null'], minimum: 0 }
+            densityPer10000: { type: [number, 'null'], minimum: 0 }
+            riskScore: { type: [number, 'null'] }
+        vulnerability:
+          type: object
+          additionalProperties: false
+          required: [responsiblePersonMedianIncomeBrl, incomeProxyScore, childrenShare, olderPeopleShare, score]
+          properties:
+            responsiblePersonMedianIncomeBrl: { type: [number, 'null'], minimum: 0 }
+            incomeProxyScore: { type: [number, 'null'], minimum: 0, maximum: 1 }
+            childrenShare: { type: [number, 'null'] }
+            olderPeopleShare: { type: [number, 'null'] }
+            score: { type: [number, 'null'] }
+        missingReasons: { type: array, items: { type: string } }
+    FacilityDetail:
+      type: object
+      additionalProperties: false
+      required: [cnesId, name, categories, servesSus, external, address, location, active, referenceDate, source]
+      properties:
+        cnesId: { type: string }
+        name: { type: string }
+        categories: { type: array, items: { type: string } }
+        servesSus: { type: boolean }
+        external: { type: boolean }
+        address: { type: [string, 'null'] }
+        location: { $ref: '#/components/schemas/Point' }
+        active: { type: boolean }
+        referenceDate: { type: string, format: date }
+        source: { $ref: '#/components/schemas/Source' }

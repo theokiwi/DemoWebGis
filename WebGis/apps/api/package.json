@@ -1,0 +1,8 @@
+{
+  "name": "@bh/api",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "dev": "tsx watch src/server.ts", "build": "tsc -b", "start": "node dist/server.js" },
+  "dependencies": { "@fastify/cors": "latest", "@fastify/helmet": "latest", "@fastify/rate-limit": "latest", "fastify": "latest" },
+  "devDependencies": { "tsx": "latest" }
+}
